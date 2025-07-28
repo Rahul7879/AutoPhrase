@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const connectDB = require('./config/database');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -10,11 +10,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://mongo:27017/mernapp', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+connectDB();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
