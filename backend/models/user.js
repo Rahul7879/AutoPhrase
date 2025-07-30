@@ -2,20 +2,52 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+  
+  firstName:{
+    type: String,
+    required: [true, "First name is required!"], 
+    minLength: [2, "First name must be at least 2 characters long!"],
+    maxLength: [50, "First name must be at most 50 characters long!"],
+    trim:true, 
+  },
+
+  lastName:{
+    type: String,
+    required: [true, "Last name is required!"],
+    minLength: [2, "Last name must be at least 2 characters long!"],
+    maxLength: [50, "Last name must be at most 50 characters long!"],
+    trim:true,
+  },
+
   email: {
     type: String,
-    required: true,
+    required: [true, "Email is required!"],
+    trim:true,
     unique: true,
     lowercase: true
   },
+
   password: {
     type: String,
-    required: true,
-    minlength: 6
+    required: [true, "Password is required"],
+    trim:true,
+    minlength: 8
   },
-  resetPasswordToken: String,
-  resetPasswordExpires: Date
-}, {
+
+  settings: {
+    animationEnabled: { type: Boolean, default: true },
+    soundEnabled: { type: Boolean, default: true },
+    theme: { type: String, enum: ['light', 'dark'], default: 'light' }, 
+    language: { type: String, default: 'en' }
+  },
+  otp: String,
+  otpExpiry: Date,
+  otpVerified: {
+    type: Boolean,
+    default: false
+  },
+}, 
+{
   timestamps: true
 });
 

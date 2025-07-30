@@ -1,8 +1,9 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const bcrypt = require('bcryptjs');
+const sendEmail = require('../utils/sendEmail');
 
 const router = express.Router();
 
@@ -15,18 +16,31 @@ const generateToken = (id) => {
 
 // Register
 router.post('/register', async (req, res) => {
+
+  const { firstName,lastName, email, password } = req.body;
+  
+    if (!firstName) return res.status(400).json({ message: "First name is required.",});
+    if (!lastName) return res.status(400).json({ message: "Last name is required.",});
+    if (!email) return res.status(400).json({ message: "Email is required.",});
+    if (!password) return res.status(400).json({ message: "Password is required.",});
+  
   try {
-    const { email, password } = req.body;
-
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    if (existingUser) 
       return res.status(400).json({ message: 'User already exists' });
-    }
+    
 
-    const user = new User({ email, password });
+    const user = new User({ firstName,lastName,email, password });
     await user.save();
 
     const token = generateToken(user._id);
+
+     res.cookie("token", token, {
+      httpOnly: true,
+      // secure: true,          // use false for dev over http
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
     
     res.status(201).json({
       token,
@@ -53,6 +67,12 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken(user._id);
+     res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,          
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 
+  });
     
     res.json({
       token,
@@ -68,57 +88,115 @@ router.get('/me', auth, async (req, res) => {
   res.json({ user: req.user });
 });
 
-// Reset password request
+
+//change password
+router.post('/change-password', auth, async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.id); 
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Old password incorrect' });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await User.findByIdAndUpdate(
+        req.user.id,
+        { password: hashedPassword },
+        { runValidators: false } // skips validation on other fields like firstName
+    );
+
+    res.json({ message: 'Password changed successfully' });
+});
+
+
+// OTP generator
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// Forgot Password - Send OTP
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  const otp = generateOTP();
+  const hashedOtp = await bcrypt.hash(otp, 10);
+  const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  //update directly without triggering required fields validation
+  await User.findByIdAndUpdate(
+    user._id,
+    {
+      otp: hashedOtp,
+      otpExpiry: otpExpiry,
+      otpVerified: false
+    },
+    { runValidators: false }
+  );
+
+  //send email with plain OTP
+  await sendEmail(
+    email,
+    'Your OTP for Password Reset',
+    `Your OTP is ${otp}. It is valid for 10 minutes.`
+  );
+
+  res.json({ message: 'OTP sent to your email' });
+});
+
+
+// Verify OTP
+router.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user || !user.otp || !user.otpExpiry) {
+    return res.status(400).json({ message: 'Invalid or expired OTP' });
+  }
+
+  const isMatch = await bcrypt.compare(otp, user.otp);
+  if (!isMatch || user.otpExpiry < Date.now()) {
+    return res.status(400).json({ message: 'Invalid or expired OTP' });
+  }
+
+  await User.findByIdAndUpdate(
+    user._id,
+    {
+      otpVerified: true,
+      otp: undefined,
+      otpExpiry: undefined
+    },
+    { runValidators: false }
+  );
+
+  res.json({ message: 'OTP verified. You can now reset your password.' });
+});
+
+
+// Reset Password
 router.post('/reset-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+  const { email, newPassword } = req.body;
+  const user = await User.findOne({ email });
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
-    
-    await user.save();
-
-    // In production, send email with resetToken
-    res.json({ 
-      message: 'Reset token generated',
-      resetToken // Remove this in production
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+  if (!user || !user.otpVerified) {
+    return res.status(400).json({ message: 'OTP not verified or user not found' });
   }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await User.findByIdAndUpdate(
+    user._id,
+    {
+      password: hashedPassword,
+      otpVerified: false
+    },
+    { runValidators: false }
+  );
+
+  res.json({ message: 'Password reset successful' });
 });
 
-// Reset password confirm
-router.post('/reset-password/:token', async (req, res) => {
-  try {
-    const { password } = req.body;
-    const { token } = req.params;
-
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired token' });
-    }
-
-    user.password = password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    
-    await user.save();
-
-    res.json({ message: 'Password reset successful' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
 module.exports = router;
