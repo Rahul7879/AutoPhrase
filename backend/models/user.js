@@ -5,17 +5,11 @@ const userSchema = new mongoose.Schema({
   
   firstName:{
     type: String,
-    required: [true, "First name is required!"], 
-    minLength: [2, "First name must be at least 2 characters long!"],
-    maxLength: [50, "First name must be at most 50 characters long!"],
     trim:true, 
   },
 
   lastName:{
     type: String,
-    required: [true, "Last name is required!"],
-    minLength: [2, "Last name must be at least 2 characters long!"],
-    maxLength: [50, "Last name must be at most 50 characters long!"],
     trim:true,
   },
 
@@ -29,9 +23,9 @@ const userSchema = new mongoose.Schema({
 
   password: {
     type: String,
-    required: [true, "Password is required"],
     trim:true,
-    minlength: 8
+    minlength: 8,
+    required: false,
   },
 
   settings: {
@@ -46,6 +40,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  //OAuth
+  oauthProvider: String, // "google", "github", etc.
+  oauthId: String,
+  profilePic: String,
 }, 
 {
   timestamps: true
@@ -61,4 +59,4 @@ userSchema.methods.comparePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

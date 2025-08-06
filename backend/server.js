@@ -1,12 +1,14 @@
+require('dotenv').config();
 const express = require('express');
 const connectDB = require('./config/database');
 const cors = require('cors');
-require('dotenv').config();
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const cookieParser = require('cookie-parser');
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 
 // Middleware
@@ -17,7 +19,7 @@ app.use(cookieParser());
 connectDB();
 
 // Routes
-app.use('/api/auth', require('./Routes/auth'));
+app.use('/api/auth', require('./routes/auth'));
 
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Backend is running!' });
