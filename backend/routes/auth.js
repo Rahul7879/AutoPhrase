@@ -5,6 +5,7 @@ const auth = require("../middleware/auth");
 const bcrypt = require("bcryptjs");
 const sendEmail = require("../utils/sendEmail");
 const { google } = require("googleapis");
+const {createDefaultFolder} = require('../utils/folder');
 const OAuth2Client = google.auth.OAuth2;
 
 const router = express.Router();
@@ -41,6 +42,7 @@ router.post("/register", async (req, res) => {
 			sameSite: "strict",
 			maxAge: 7 * 24 * 60 * 60 * 1000, 
 		});
+		await createDefaultFolder(user._id); 
 
 		res.status(201).json({
 			token,
@@ -260,12 +262,10 @@ router.get("/google/callback", async (req, res) => {
 			sameSite: "strict",
 			maxAge: 7 * 24 * 60 * 60 * 1000,
 		});
-		console.log("User.password:", user.password);
+		await createDefaultFolder(user._id); 
+
 		if(!user.password) return res.redirect("http://localhost:3000/set-password.html");
 		else return res.redirect("http://localhost:3000/dashboard");
-		
-
-		
 		
 	} catch (error) {
 		res.status(500).json({ message: "Server error during Google OAuth" });
