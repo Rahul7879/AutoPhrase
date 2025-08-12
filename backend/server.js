@@ -21,6 +21,8 @@ connectDB();
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 
+app.use("/folders", require("./routes/folder"));
+
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Backend is running!' });
 });
