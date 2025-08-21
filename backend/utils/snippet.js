@@ -33,9 +33,8 @@ exports.createSnippet = async (req, res) => {
 			}
 		}
 
-		if (conflict) {
-			return res.status(400).json({message: `Conflicting shortcut with ${conflict.shortcutKey}. Please choose a unique shortcut.`});
-		}
+		if (conflict)  return res.status(400).json({message: `Conflicting shortcut with ${conflict.shortcutKey}. Please choose a unique shortcut.`});
+		
 
 		const snippet = new Snippet({
 			folderId,
@@ -53,4 +52,33 @@ exports.createSnippet = async (req, res) => {
 
 		res.status(500).json({ message: "Server error" });
 	}
+};
+
+// get Snippets
+exports.getSnippets = async (req, res) => {
+  try {
+	const folderId = req.params.folderId? req.params.folderId.trim() : "";
+    if (!folderId) return res.status(400).json({ message: "Folder ID is required" });
+
+    const folder = await Folder.findOne({ _id: folderId, userId: req.user.id });
+    if (!folder) return res.status(404).json({ message: "Folder not found" });
+
+    const fields = req.query['fields'] || "";
+	const limit = parseInt(req.query['limit']) || 10;
+	const skip = parseInt(req.query['skip']) || 0;
+	const sortBy = req.query['sortBy'] || 'shortcutKey';
+	const orderBy = req.query['orderBy'] ? req.query['orderBy'].trim() : '';
+
+    const snippets = await Snippet.find({folderId})
+		.limit(limit)
+		.skip(skip)
+      .sort({ [sortBy]: orderBy })
+      .select(fields);
+
+    res.status(200).json(snippets);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 };

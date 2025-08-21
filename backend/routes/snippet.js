@@ -11,7 +11,7 @@ const {
 router.use(auth);
 
 router.post("/", createSnippet);
-router.get("/", getSnippets);
+router.get("/:folderId/snippets", getSnippets);
 router.put("/:id", updateSnippet);
 router.delete("/:id", deleteSnippet);
 
