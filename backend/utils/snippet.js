@@ -159,3 +159,25 @@ exports.updateSnippet = async (req, res) => {
     res.status(500).json({ message: "Server errorr" });
   }
 };
+
+// delet snippet 
+exports.deleteSnippet = async (req,res) => {
+	try {
+		const folderId = req.params.folderId? req.params.folderId.trim() : "";
+		if (!folderId || !mongoose.Types.ObjectId.isValid(folderId)) return res.status(400).json({ message: "Valid Folder Id is required" });
+		const folder = await Folder.findOne({ _id: folderId, userId: req.user.id });
+		if (!folder) return res.status(404).json({ message: "Folder not found" });
+
+		const snippetId = req.params.snippetId? req.params.snippetId.trim() : "";
+		if (!snippetId || !mongoose.Types.ObjectId.isValid(snippetId)) return res.status(400).json({ message: "Valid Snippet Id is required" });
+
+		const snippet = await Snippet.findOne({ _id: snippetId, folderId, userId: req.user.id });
+    	if (!snippet) return res.status(404).json({ message: "Snippet not found" });
+		await snippet.deleteOne();
+		res.json({message:"Snippet deleted successfully"});
+
+	} catch (error) {
+		console.error("Error deleting snippet:", err);
+    	res.status(500).json({ message: "Server errorr" });
+	}
+}
