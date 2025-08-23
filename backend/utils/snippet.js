@@ -1,25 +1,26 @@
 // create snippet
 const Snippet = require("../models/snippet");
 const Folder = require("../models/folder");
+const mongoose = require("mongoose");
 
 exports.createSnippet = async (req, res) => {
 	try {
-		const { description, folderId } = req.body;
-		let { shortcutKey, content } = req.body;
-
-		shortcutKey = shortcutKey.trim();
-		content = content.trim();
-
-		if (!folderId || !folderId.trim()) return res.status(400).json({ message: "Folder ID is required" });
-    if (folderId !== folderId.trim()) return res.status(404).json({ message: "Folder not found" });
+		const folderId = req.params.folderId? req.params.folderId.trim() : "";
+    	if (!folderId || !mongoose.Types.ObjectId.isValid(folderId)) return res.status(400).json({ message: "Valid Folder ID is required" });
 
 		const folder = await Folder.findOne({ _id: folderId, userId: req.user.id });
 		if (!folder) return res.status(404).json({ message: "Folder not found" });
 
+		let { shortcutKey, content, description } = req.body;
+		description = description.trim();
+		shortcutKey = shortcutKey.trim();
+		content = content.trim();
+
 		if (!shortcutKey) return res.status(400).json({ message: "Shortcut key is required" });
 		if (!content) return res.status(400).json({ message: "Content is required" });
+		if(!description) return res.status(400).json({ message: "Description is required" });
 
-    const newKeyLower = shortcutKey.toLowerCase();
+    	const newKeyLower = shortcutKey.toLowerCase();
 
 		const existing = await Snippet.find({ userId: req.user.id }).select("shortcutKey");
 		let conflict = null;
@@ -54,11 +55,11 @@ exports.createSnippet = async (req, res) => {
 	}
 };
 
-// get Snippets
+// get all Snippets by folder id
 exports.getSnippets = async (req, res) => {
   try {
 	const folderId = req.params.folderId? req.params.folderId.trim() : "";
-    if (!folderId) return res.status(400).json({ message: "Folder ID is required" });
+    if (!folderId || !mongoose.Types.ObjectId.isValid(folderId)) return res.status(400).json({ message: "Valid Folder Id is required" });
 
     const folder = await Folder.findOne({ _id: folderId, userId: req.user.id });
     if (!folder) return res.status(404).json({ message: "Folder not found" });
@@ -80,5 +81,81 @@ exports.getSnippets = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// update snippet
+exports.updateSnippet = async (req, res) => {
+  try {
+    const folderId = req.params.folderId? req.params.folderId.trim() : "";
+    if (!folderId || !mongoose.Types.ObjectId.isValid(folderId)) return res.status(400).json({ message: "Valid Folder Id is required" });
+    const folder = await Folder.findOne({ _id: folderId, userId: req.user.id });
+    if (!folder) return res.status(404).json({ message: "Folder not found" });
+
+    const snippetId = req.params.snippetId? req.params.snippetId.trim() : "";
+	if (!snippetId || !mongoose.Types.ObjectId.isValid(snippetId)) return res.status(400).json({ message: "Valid Snippet Id is required" });
+	
+    
+
+    let { shortcutKey, content, description } = req.body;
+
+    shortcutKey = shortcutKey?.trim();
+    content = content?.trim();
+    description = description?.trim();
+
+	const snippet = await Snippet.findOne({ _id: snippetId, folderId, userId: req.user.id });
+    if (!snippet) return res.status(404).json({ message: "Snippet not found" });
+	
+	const updateFields = {};
+
+    if (shortcutKey !== undefined) {
+      if (!shortcutKey) return res.status(400).json({ message: "Shortcut key cannot be empty" });
+      
+	const newKeyLower = shortcutKey.toLowerCase();
+
+	  const existing = await Snippet.find({
+        userId: req.user.id,
+        _id: { $ne: snippetId },
+      }).select("shortcutKey");
+
+		let conflict = null;
+		for (const s of existing) {
+			const kLower = (s.shortcutKey || "").trim().toLowerCase();
+			if (!kLower) continue;
+
+			if (kLower === newKeyLower || kLower.startsWith(newKeyLower) || newKeyLower.startsWith(kLower)) {
+				conflict = s; 
+				break;
+			}
+		}
+
+		if (conflict)  return res.status(400).json({message: `Conflicting shortcut with ${conflict.shortcutKey}. Please choose a unique shortcut.`});
+
+		 if (shortcutKey !== existing.shortcutKey) updateFields.shortcutKey = shortcutKey; 
+	}
+
+	if (content !== undefined) {
+		if (!content) return res.status(400).json({ message: "Content cannot be empty" });
+		updateFields.content = content;
+    }
+
+	if (description !== undefined) {
+      if (!description) return res.status(400).json({ message: "Description cannot be empty" });
+      updateFields.description = description;
+    }
+
+	if (Object.keys(updateFields).length === 0) return res.status(400).json({ message: "No valid fields provided for update" });
+    
+
+    const updatedSnippet = await Snippet.findOneAndUpdate(
+      { _id: snippetId, folderId, userId: req.user.id },
+      { $set: { shortcutKey, content, description } },
+      { new: true, runValidators: true}
+    );
+	
+    res.json({ message: "Snippet updated successfully", snippet: updatedSnippet });
+  } catch (err) {
+    console.error("Error updating snippet:", err);
+    res.status(500).json({ message: "Server errorr" });
   }
 };

@@ -5,14 +5,14 @@ const {
   createSnippet,
   getSnippets,
   updateSnippet,
-  deleteSnippet,
+  // deleteSnippet,
 } = require("../utils/snippet");
 
 router.use(auth);
 
-router.post("/", createSnippet);
+router.post("/:folderId/snippets", createSnippet);
 router.get("/:folderId/snippets", getSnippets);
-router.put("/:id", updateSnippet);
-router.delete("/:id", deleteSnippet);
+router.put("/:folderId/snippet/:snippetId", updateSnippet);
+// router.delete("/:id", deleteSnippet);
 
 module.exports = router;
