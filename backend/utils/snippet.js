@@ -84,6 +84,29 @@ exports.getSnippets = async (req, res) => {
   }
 };
 
+// get Snippets by id
+exports.getSnippetById = async (req, res) => {
+  try {
+	const folderId = req.params.folderId? req.params.folderId.trim() : "";
+    if (!folderId || !mongoose.Types.ObjectId.isValid(folderId)) return res.status(400).json({ message: "Valid Folder Id is required" });
+
+    const folder = await Folder.findOne({ _id: folderId, userId: req.user.id });
+    if (!folder) return res.status(404).json({ message: "Folder not found" });
+
+	const snippetId = req.params.snippetId? req.params.snippetId.trim() : "";
+	if (!snippetId || !mongoose.Types.ObjectId.isValid(snippetId)) return res.status(400).json({ message: "Valid Snippet Id is required" });
+
+    const snippet = await Snippet.findOne({ _id: snippetId, folderId, userId: req.user.id });
+    if (!snippet) return res.status(404).json({ message: "Snippet not found" });
+
+    res.status(200).json(snippet);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // update snippet
 exports.updateSnippet = async (req, res) => {
   try {
@@ -94,14 +117,13 @@ exports.updateSnippet = async (req, res) => {
 
     const snippetId = req.params.snippetId? req.params.snippetId.trim() : "";
 	if (!snippetId || !mongoose.Types.ObjectId.isValid(snippetId)) return res.status(400).json({ message: "Valid Snippet Id is required" });
-	
-    
 
-    let { shortcutKey, content, description } = req.body;
+    let { shortcutKey, content, description , targetFolderId} = req.body;
 
     shortcutKey = shortcutKey?.trim();
     content = content?.trim();
     description = description?.trim();
+	targetFolderId = targetFolderId?.trim();
 
 	const snippet = await Snippet.findOne({ _id: snippetId, folderId, userId: req.user.id });
     if (!snippet) return res.status(404).json({ message: "Snippet not found" });
@@ -131,7 +153,7 @@ exports.updateSnippet = async (req, res) => {
 
 		if (conflict)  return res.status(400).json({message: `Conflicting shortcut with ${conflict.shortcutKey}. Please choose a unique shortcut.`});
 
-		 if (shortcutKey !== existing.shortcutKey) updateFields.shortcutKey = shortcutKey; 
+		 if (shortcutKey !== snippet.shortcutKey) updateFields.shortcutKey = shortcutKey; 
 	}
 
 	if (content !== undefined) {
@@ -144,12 +166,22 @@ exports.updateSnippet = async (req, res) => {
       updateFields.description = description;
     }
 
+
+	  if (targetFolderId !== undefined) {
+      if (!targetFolderId || !mongoose.Types.ObjectId.isValid(targetFolderId)) return res.status(400).json({ message: "Valid Target Folder Id is required" });
+
+      const targetFolder = await Folder.findOne({ _id: targetFolderId, userId: req.user.id });
+      if (!targetFolder) return res.status(404).json({ message: "Target folder not found" });
+
+      updateFields.folderId = targetFolderId; 
+    }
+
 	if (Object.keys(updateFields).length === 0) return res.status(400).json({ message: "No valid fields provided for update" });
     
 
     const updatedSnippet = await Snippet.findOneAndUpdate(
-      { _id: snippetId, folderId, userId: req.user.id },
-      { $set: { shortcutKey, content, description } },
+      { _id: snippetId, userId: req.user.id },
+      { $set:  updateFields  },
       { new: true, runValidators: true}
     );
 	
@@ -160,7 +192,7 @@ exports.updateSnippet = async (req, res) => {
   }
 };
 
-// delet snippet 
+// delete snippet 
 exports.deleteSnippet = async (req,res) => {
 	try {
 		const folderId = req.params.folderId? req.params.folderId.trim() : "";
@@ -181,3 +213,4 @@ exports.deleteSnippet = async (req,res) => {
     	res.status(500).json({ message: "Server errorr" });
 	}
 }
+
